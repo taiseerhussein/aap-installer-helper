@@ -1,0 +1,7 @@
+# AAP Cluster
+192.168.122.131 automationdatabase automationdatabase.home.lab
+192.168.122.141 automationgateway automationgateway.home.lab
+192.168.122.187 automationcontroller automationcontroller.home.lab
+192.168.122.106 executionnode1 executionnode1.home.lab
+192.168.122.125 automationedacontroller automationedacontroller.home.lab
+192.168.122.114 automationhub automationhub.home.lab

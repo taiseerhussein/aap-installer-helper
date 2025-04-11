@@ -1,0 +1,286 @@
+= AAP Containerized installation 2.5
+
+Author: Juan Medina
+
+Email: jumedina@redhat.com
+
+== Requirements
+
+. Red Hat Enterprise Linux (RHEL) 9.2 or later 
+. Minimal Specs: RAM 16 GB, CPUs 4, Storage 60 GB
+
+[NOTES]
+====
+. Install RHEL Minimal
+. Create the "ansible" user with admin privileges at installation
+. Subscribe the system to RH
+====
+
+=== Pre-Setup
+
+[NOTE]
+====
+You can follow the manual instructions below or execute the provided playbook `pre-setup.yml` in the server where AAP will be installed.
+
+[source,bash]
+----
+$ ansible-playbook -i 'localhost,' -K pre-setup.yml 
+----
+====
+
+*On the AAP system*
+	
+If the ansible user was not created at installation
+
+[source,shell]
+----
+sudo useradd -c "Ansible Admin" -G wheel -m -s /bin/bash -d /home/ansible ansible
+sudo passwd ansible
+----
+
+Make sure the ansible user can sudo without using a password
+
+[source,shell]
+----
+echo "ansible ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ansible
+sudo loginctl enable-linger ansible
+----
+
+Register in the /etc/hosts file so it can be found by name resolution
+
+Generate SSH keys for the ansible user and share them with the root account
+
+NOTE: For my local system I can have my certs without password, but, if generated with password be sure to add the option `-K` when running the installation 
+
+[source,shell]
+----
+ssh-keygen -t rsa -b 4096
+chmod 700 ~/.ssh
+touch ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chown -R $USER:$USER ~/.ssh
+ssh-copy-id -i ~/.ssh/id_rsa.pub root@aap.home.lab
+----
+
+Switch to root and ensure the SSH file structure for the root account is also correct
+
+[source,shell]
+----
+sudo -i
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+chown -R $USER:$USER ~/.ssh
+----
+
+Validate that only the BaseOS and AppStream repositories are enabled
+
+[source,shell]
+----
+dnf repolist
+----
+
+Install ansible-core and other utilities
+
+[source,shell]
+----
+dnf install -y ansible-core wget git-core rsync vim jq tree bash-completion bind-utils
+----
+
+Upgrade the system and reboot it
+
+[source,shell]
+----
+dnf -y upgrade 
+systemctl reboot
+----
+
+== Download AAP
+
+*On your workstation*
+
+https://access.redhat.com/downloads/content/480/ver=2.5/rhel---9/2.5/x86_64/product-software
+
+- For online installations: Ansible Automation Platform 2.5 Containerized Setup
+- For offline or bundled installations: Ansible Automation Platform 2.5 Containerized Setup Bundle
+
+Copy the package to your AAP system and extract it as the user ansible
+
+Also copy the zip file for the license (Do not extract this one)
+
+*On the AAP system*
+
+[source,shell]
+----
+scp ansible-automation-platform-containerized-setup-2.5-10.tar.gz ansible@aap.home.lab:~
+scp c57ede26-dae3-4811-a854-2ed0f1a73c54.zip ansible@aap.home.lab:~
+tar xfvz ansible-automation-platform-containerized-setup-*.tar.gz
+cd ansible-automation-platform-containerized-setup-*
+----
+
+== Inventory for Growth Topology
+
+[source,yaml]
+----
+[automationgateway]
+aap.home.lab
+[automationcontroller]
+aap.home.lab
+[automationhub]
+aap.home.lab
+[automationeda]
+aap.home.lab
+[database]
+aap.home.lab
+
+[all:vars]
+ansible_connection=local
+controller_license_file=/home/ansible/c57ede26-dae3-4811-a854-2ed0f1a73c54.zip
+bundled=false
+
+postgresql_admin_username=postgres
+postgresql_admin_password=redhat123
+registry_username=<your RH username>
+registry_password=<your RH password>
+redis_mode=standalone
+
+gateway_admin_password=redhat123
+gateway_pg_host=aap.home.lab
+gateway_pg_password=redhat123
+
+controller_admin_password=redhat123
+controller_pg_host=aap.home.lab
+controller_pg_password=redhat123
+controller_percent_memory_capacity=0.5
+
+hub_admin_password=redhat123
+hub_pg_host=aap.home.lab
+hub_pg_password=redhat123
+hub_seed_collections=false
+
+eda_admin_password=redhat123
+eda_pg_host=aap.home.lab
+eda_pg_password=redhat123
+----
+
+== Installation 
+
+NOTE: If need to be prompted for password add the option `-K` to the following command.
+
+[source,shell]
+----
+ansible-playbook -vvvv -i inventory-growth ansible.containerized_installer.install
+----
+
+== A Healthy Running System
+
+Expected images
+
+[source,shell]
+----
+[ansible@aap ~]$ podman images
+REPOSITORY                                                                 TAG         IMAGE ID      CREATED     SIZE
+registry.redhat.io/rhel8/postgresql-15                                     latest      839c80bfeaf1  2 days ago  779 MB
+registry.redhat.io/rhel8/redis-6                                           latest      2f69df537ae5  2 days ago  330 MB
+registry.redhat.io/ansible-automation-platform-25/eda-controller-ui-rhel8  latest      ac6227018349  8 days ago  519 MB
+registry.redhat.io/ansible-automation-platform-25/hub-web-rhel8            latest      5a7983d166cb  8 days ago  515 MB
+registry.redhat.io/ansible-automation-platform-25/controller-rhel8         latest      584e275bb94c  8 days ago  1.82 GB
+registry.redhat.io/ansible-automation-platform-25/gateway-rhel8            latest      a54c88e9c734  8 days ago  935 MB
+registry.redhat.io/ansible-automation-platform-25/receptor-rhel8           latest      95a66951574c  8 days ago  589 MB
+registry.redhat.io/ansible-automation-platform-25/hub-rhel8                latest      71aab12626dd  8 days ago  1.3 GB
+registry.redhat.io/ansible-automation-platform-25/eda-controller-rhel8     latest      69b690549bba  8 days ago  1.01 GB
+registry.redhat.io/ansible-automation-platform-25/gateway-proxy-rhel8      latest      e07041398b76  8 days ago  497 MB
+----
+
+Expected containers (Output modified for presentation)
+
+[source,shell]
+----
+[ansible@aap ~]$ podman ps --no-trunc --size 
+IMAGE                         COMMAND
+		PORTS               			NAMES           SIZE
+postgresql-15:latest          run-postgresql
+		5432/tcp            	postgresql      1.63MB (virtual 780MB)
+redis-6:latest                run-redis
+		6379/tcp            	redis-unix      372kB (virtual 330MB)
+redis-6:latest                run-redis
+		6379/tcp            	redis-tcp       372kB (virtual 330MB)
+gateway-proxy-rhel8:latest    /usr/bin/envoy --config-path /etc/envoy/envoy.yaml
+													automation-gateway-proxy            372kB (virtual 497MB)
+gateway-rhel8:latest          /usr/bin/supervisord --configuration /etc/supervisord.conf
+													automation-gateway                  374kB (virtual 936MB)
+receptor-rhel8:latest         /usr/bin/receptor --config /etc/receptor/receptor.conf
+															receptor                            374kB (virtual 590MB)
+controller-rhel8:latest       /usr/bin/launch_awx_rsyslog.sh
+		8052/tcp           	 automation-controller-rsyslog       376kB (virtual 1.82GB)
+controller-rhel8:latest       /usr/bin/launch_awx_task.sh
+		8052/tcp            	automation-controller-task          376kB (virtual 1.82GB)
+controller-rhel8:latest       /usr/bin/launch_awx_web.sh
+		8052/tcp            	automation-controller-web           377kB (virtual 1.82GB)
+eda-controller-rhel8:latest   gunicorn --bind 127.0.0.1:8000 --workers 13 aap_eda.wsgi:application
+															automation-eda-api                  373kB (virtual 1.01GB)
+eda-controller-rhel8:latest   daphne --bind 127.0.0.1 --port 8001 aap_eda.asgi:application
+															automation-eda-daphne               373kB (virtual 1.01GB)
+eda-controller-ui-rhel8:latest  /bin/sh -c nginx -g "daemon off;"
+		8080/tcp, 8443/tcp  	automation-eda-web                  373kB (virtual 519MB)
+eda-controller-rhel8:latest   aap-eda-manage rqworker --worker-class aap_eda.core.tasking.DefaultWorker
+															automation-eda-worker-1             373kB (virtual 1.01GB)
+eda-controller-rhel8:latest   aap-eda-manage rqworker --worker-class aap_eda.core.tasking.DefaultWorker
+															automation-eda-worker-2             373kB (virtual 1.01GB)
+eda-controller-rhel8:latest   aap-eda-manage rqworker --worker-class aap_eda.core.tasking.ActivationWorker
+															automation-eda-activation-worker-1  373kB (virtual 1.01GB)
+eda-controller-rhel8:latest   aap-eda-manage rqworker --worker-class aap_eda.core.tasking.ActivationWorker
+															automation-eda-activation-worker-2  373kB (virtual 1.01GB)
+eda-controller-rhel8:latest   aap-eda-manage scheduler
+															automation-eda-scheduler            372kB (virtual 1.01GB)
+hub-rhel8:latest              pulpcore-api --name pulp-api --bind 127.0.0.1:24817 --timeout 90 --workers 13 --access-logfile -
+															automation-hub-api                  374kB (virtual 1.3GB)
+hub-rhel8:latest              pulpcore-content --name pulp-content --bind 127.0.0.1:24816 --timeout 90 --workers 6 --access-logfile -
+															automation-hub-content              374kB (virtual 1.3GB)
+hub-web-rhel8:latest          /bin/sh -c nginx -g "daemon off;"
+		8080/tcp, 8443/tcp  	automation-hub-web                  373kB (virtual 515MB)
+hub-rhel8:latest              pulpcore-worker
+															automation-hub-worker-1             373kB (virtual 1.3GB)
+hub-rhel8:latest              pulpcore-worker
+															automation-hub-worker-2             373kB (virtual 1.3GB)
+----
+
+Listening Ports
+
+[source,shell]
+----
+$ sudo ss -tunl | awk '{print $5}' | sort | uniq 
+0.0.0.0:22
+0.0.0.0:443
+0.0.0.0:5432
+0.0.0.0:6379
+0.0.0.0:8080
+0.0.0.0:8081
+0.0.0.0:8082
+0.0.0.0:8443
+0.0.0.0:8444
+0.0.0.0:8445
+0.0.0.0:8446
+127.0.0.1:24816
+127.0.0.1:24817
+127.0.0.1:323
+127.0.0.1:8000
+127.0.0.1:8001
+127.0.0.1:8050
+127.0.0.1:8051
+127.0.0.1:8052
+[::1]:323
+[::1]:8014
+[::1]:8015
+[::1]:8016
+[::]:22
+*:50051
+[::]:5432
+[::]:6379
+----
+
+Debugging Commands
+
+[source,shell]
+----
+sudo journalctl --no-pager --no-tail -o json-pretty -p err -t automation-*  | jq . 
+----

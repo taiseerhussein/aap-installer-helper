@@ -1,0 +1,89 @@
+all:
+    vars:
+    hosts:
+        automationcontroller.home.lab:
+            ansible_host: "192.168.122.187"
+            net:
+                trusted:
+                    sources:
+                        - 192.168.122.125
+                        - 192.168.122.141
+                    ports:
+                        - "80/tcp"
+                        - "443/tcp"
+                execution:
+                    sources:
+                        - 192.168.122.106
+                    ports:
+                        - "27199/tcp"
+        automationgateway.home.lab:
+            ansible_host: 192.168.122.141
+            net:
+                redis:
+                    sources:
+                        - 192.168.122.125
+                        - 192.168.122.141
+                    ports:
+                        - "6379/tcp"
+                        - "8443/tcp"
+                trusted:
+                    sources:
+                        - 192.168.122.1/24
+                    ports:
+                        - "80/tcp"
+                        - "443/tcp"
+        automationhub.home.lab:
+            ansible_host: 192.168.122.114
+            net:
+                trusted:
+                    sources:
+                        - 192.168.122.125
+                        - 192.168.122.187
+                        - 192.168.122.141
+                        - 192.168.122.106
+                    ports:
+                        - "80/tcp"
+                        - "443/tcp"
+        automationedacontroller.home.lab:
+            ansible_host: 192.168.122.125
+            net:
+                trusted:
+                    sources:
+                        - 192.168.122.141
+                    ports:
+                        - "80/tcp"
+                        - "443/tcp"
+                        - "8443/tcp"
+        automationdatabase.home.lab:
+            ansible_host: 192.168.122.131
+            net:
+                database:
+                    sources:
+                        - 192.168.122.125
+                        - 192.168.122.141
+                        - 192.168.122.114
+                        - 192.168.122.187
+                    ports:
+                        - "5432/tcp"
+        executionnode1.home.lab:
+            ansible_host: 192.168.122.106
+            net:
+                execution:
+                    sources:
+                        - 192.168.122.187
+                    ports:
+                        - "27199/tcp"
+    children:
+        aap_cluster:
+            hosts:
+                automationcontroller.home.lab:
+                automationgateway.home.lab:
+                automationhub.home.lab:
+                automationedacontroller.home.lab:
+                automationdatabase.home.lab:
+                executionnode1.home.lab:
+            vars:
+                net:
+                    trusted:
+                        ports:
+                            - "22/tcp"
