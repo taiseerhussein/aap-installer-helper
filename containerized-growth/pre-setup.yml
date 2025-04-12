@@ -6,7 +6,7 @@
 
   vars:
     admin_user: ansible
-    #  Red Hat Registration Variables
+    #  Red Hat Registration Variables you need one or the other not both
     # Using credentials
     rhsm_username: ""
     rhsm_password: ""
@@ -20,7 +20,7 @@
       ansible.builtin.blockinfile:
         path: /etc/hosts
         block: |
-          192.168.122.93 aap.home.lab
+          {{ ansible_facts['default_ipv4']['address'] }} {{ ansible_facts['fqdn'] }}
         marker: "# {mark} ANSIBLE MANAGED BLOCK - AAP HOSTS"
         insertafter: "^::1"
         state: present
