@@ -2,7 +2,10 @@
 
 == Installation Notes
 
-Important: The instructions provided here describe the methods I use to install Ansible Automation Platform (AAP) in my personal lab environment. This environment uses KVM-based virtual machines without network or firewall restrictions. Please be aware of this context before running the included playbooks or configurations, as your environment may require adjustments.
+[IMPORTANT]
+====
+The instructions provided here describe the methods I use to install Ansible Automation Platform (AAP) in my personal lab environment. This environment uses KVM-based virtual machines without network or firewall restrictions. Please be aware of this context before running the included playbooks or configurations, as your environment may require adjustments.
+====
 
 This repository currently includes:
 
