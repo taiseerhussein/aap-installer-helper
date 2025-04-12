@@ -9,18 +9,20 @@ Email: jumedina@redhat.com
 . Red Hat Enterprise Linux (RHEL) 9.2 or later 
 . Minimal Specs: RAM 16 GB, CPUs 4, Storage 60 GB
 
-[NOTES]
+[NOTE]
 ====
-. Install RHEL Minimal
-. Create the "ansible" user with admin privileges at installation
-. Subscribe the system to RH
+- Install RHEL using the "Minimal Install" option.
+- Create an `ansible` user during installation and grant it administrative privileges.
+- Ensure the system is registered with Red Hat Subscription Management and attached to a valid subscription.
 ====
 
 === Pre-Setup
 
 [NOTE]
 ====
-You can follow the manual instructions below or execute the provided playbook `pre-setup.yml` in the server where AAP will be installed.
+You may follow the manual steps outlined below, or simply run the provided playbook `pre-setup.yml` to prepare the system.  
+
+Execute the playbook on the target system (where AAP will be installed) using the installing user:
 
 [source,bash]
 ----
@@ -28,9 +30,9 @@ $ ansible-playbook -i 'localhost,' -K pre-setup.yml
 ----
 ====
 
-*On the AAP system*
-	
-If the ansible user was not created at installation
+=== On the AAP system
+
+If the `ansible` user was not created during the OS installation, you can manually create it with administrative privileges:
 
 [source,shell]
 ----
@@ -38,7 +40,7 @@ sudo useradd -c "Ansible Admin" -G wheel -m -s /bin/bash -d /home/ansible ansibl
 sudo passwd ansible
 ----
 
-Make sure the ansible user can sudo without using a password
+Ensure the `ansible` user can perform passwordless sudo operations:
 
 [source,shell]
 ----
@@ -46,11 +48,15 @@ echo "ansible ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ansible
 sudo loginctl enable-linger ansible
 ----
 
-Register in the /etc/hosts file so it can be found by name resolution
+Update `/etc/hosts` with the appropriate entry to enable name resolution for the AAP system (e.g., `aap.home.lab`).
 
-Generate SSH keys for the ansible user and share them with the root account
+Generate SSH keys for the `ansible` user and share them with the `root` account:
 
-NOTE: For my local system I can have my certs without password, but, if generated with password be sure to add the option `-K` when running the installation 
+[NOTE]
+====
+In local or non-production environments, SSH keys can be created without a passphrase for simplicity.  
+If a passphrase is used, remember to include the `-K` flag when running the installation playbook to prompt for the SSH key password.
+====
 
 [source,shell]
 ----
@@ -62,7 +68,7 @@ chown -R $USER:$USER ~/.ssh
 ssh-copy-id -i ~/.ssh/id_rsa.pub root@aap.home.lab
 ----
 
-Switch to root and ensure the SSH file structure for the root account is also correct
+Switch to the `root` user and validate the SSH directory and permissions are correctly configured:
 
 [source,shell]
 ----
@@ -72,21 +78,21 @@ chmod 600 ~/.ssh/authorized_keys
 chown -R $USER:$USER ~/.ssh
 ----
 
-Validate that only the BaseOS and AppStream repositories are enabled
+Validate that only the `BaseOS` and `AppStream` repositories are enabled:
 
 [source,shell]
 ----
 dnf repolist
 ----
 
-Install ansible-core and other utilities
+Install `ansible-core` and additional helpful utilities:
 
 [source,shell]
 ----
 dnf install -y ansible-core wget git-core rsync vim jq tree bash-completion bind-utils
 ----
 
-Upgrade the system and reboot it
+Upgrade all system packages and reboot the host:
 
 [source,shell]
 ----
@@ -94,28 +100,38 @@ dnf -y upgrade
 systemctl reboot
 ----
 
-== Download AAP
+=== Download AAP
 
-*On your workstation*
+*From your workstation*, download the installer from the Red Hat Customer Portal:
 
 https://access.redhat.com/downloads/content/480/ver=2.5/rhel---9/2.5/x86_64/product-software
 
-- For online installations: Ansible Automation Platform 2.5 Containerized Setup
-- For offline or bundled installations: Ansible Automation Platform 2.5 Containerized Setup Bundle
+Choose the appropriate archive based on your installation type:
 
-Copy the package to your AAP system and extract it as the user ansible
+- **Online Installation**: *Ansible Automation Platform 2.5 Containerized Setup*
+- **Offline Installation**: *Ansible Automation Platform 2.5 Containerized Setup Bundle*
 
-Also copy the zip file for the license (Do not extract this one)
+Once downloaded:
 
-*On the AAP system*
+. Copy the installation archive to your AAP system.
+. Extract it as the `ansible` user.
+. Copy the **license zip file** to the same location — *do not extract the license file*.
 
 [source,shell]
 ----
+# Example from your workstation
 scp ansible-automation-platform-containerized-setup-2.5-10.tar.gz ansible@aap.home.lab:~
 scp c57ede26-dae3-4811-a854-2ed0f1a73c54.zip ansible@aap.home.lab:~
+
+# On the AAP system
 tar xfvz ansible-automation-platform-containerized-setup-*.tar.gz
 cd ansible-automation-platform-containerized-setup-*
 ----
+
+[NOTE]
+====
+Ensure all files are owned by the `ansible` user and are located within that user’s home directory.
+====
 
 == Inventory for Growth Topology
 
@@ -123,12 +139,16 @@ cd ansible-automation-platform-containerized-setup-*
 ----
 [automationgateway]
 aap.home.lab
+
 [automationcontroller]
 aap.home.lab
+
 [automationhub]
 aap.home.lab
+
 [automationeda]
 aap.home.lab
+
 [database]
 aap.home.lab
 
@@ -137,38 +157,52 @@ ansible_connection=local
 controller_license_file=/home/ansible/c57ede26-dae3-4811-a854-2ed0f1a73c54.zip
 bundled=false
 
+# PostgreSQL configuration
 postgresql_admin_username=postgres
 postgresql_admin_password=redhat123
+
+# Red Hat registry authentication
 registry_username=<your RH username>
 registry_password=<your RH password>
+
+# Redis configuration
 redis_mode=standalone
 
+# Automation Gateway
 gateway_admin_password=redhat123
 gateway_pg_host=aap.home.lab
 gateway_pg_password=redhat123
 
-controller_admin_password=redhat123
-controller_pg_host=aap.home.lab
-controller_pg_password=redhat123
+# Automation Controller
+admin_password=redhat123
+pg_host=aap.home.lab
+pg_password=redhat123
 controller_percent_memory_capacity=0.5
 
+# Automation Hub
 hub_admin_password=redhat123
 hub_pg_host=aap.home.lab
 hub_pg_password=redhat123
 hub_seed_collections=false
 
+# Event-Driven Ansible (EDA)
 eda_admin_password=redhat123
 eda_pg_host=aap.home.lab
 eda_pg_password=redhat123
 ----
 
-== Installation 
+== Installation
 
-NOTE: If need to be prompted for password add the option `-K` to the following command.
+[NOTE]
+====
+If your Ansible user requires password-based privilege escalation, add the `-K` option to be prompted for the sudo password during execution.
+====
+
+To begin the installation of AAP 2.5 using the containerized installer, run the following command:
 
 [source,shell]
 ----
-ansible-playbook -vvvv -i inventory-growth ansible.containerized_installer.install
+ansible-playbook -i inventory-growth ansible.containerized_installer.install
 ----
 
 == A Healthy Running System
