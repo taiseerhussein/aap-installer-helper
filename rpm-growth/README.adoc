@@ -6,35 +6,74 @@ Email: jumedina@redhat.com
 
 == Requirements
 
-. Six Machines with Red Hat Enterprise Linux (RHEL) 9.2 or later
-+
-- automationgateway
-- automationcontroller
-- automationhub
-- automationedacontroller
-- executionnode1
-- automationdatabase
+You will need six machines running **Red Hat Enterprise Linux (RHEL) 9.2 or later**. The hostnames used in this environment are:
 
-. Minimal Specs: (Because mine is a sandbox environment I used half of the minimum recommendations for CPU and RAM)
-+
+- `automationgateway.home.lab`
+- `automationcontroller.home.lab`
+- `automationhub.home.lab`
+- `automationedacontroller.home.lab`
+- `executionnode1.home.lab`
+- `automationdatabase.home.lab`
 
-- Control nodes    16GB RAM, 4 CPUs, 80GB minimum + 20GB allocated to /var/lib/awx
-- Automation hub   16GB RAM, 4 CPUs, 40GB minimum + 40GB allocated to /var/lib/pulp
-- Database         16GB RAM, 4 CPUs, 40GB minimum + 200GB allocated to /var/lib/pgsql
-- Platform gateway 16GB RAM, 4 CPUs, 40GB minimum 
-- Execution nodes  16GB RAM, 4 CPUs, 40GB minimum
-- Hop nodes        16GB RAM, 4 CPUs, 40GB minimum
-- EDA controller   16GB RAM, 4 CPUs, 40GB minimum
+[NOTE]
+====
+This setup is built for a sandbox environment.
 
-. Ansible-core version 2.16 or later
-. Python 3.8 or later
+The resource allocation below reflects approximately **half of the minimum** recommended CPU and memory for a production environment.
+====
+
+.Required System Specifications
+[cols="1,2", options="header"]
+|===
+| Node Type | Recommended Resources (Sandbox)
+| Control Nodes (e.g., controller)
+| 16 GB RAM, 4 CPUs, 80 GB disk + 20 GB for `/var/lib/awx`
+| Automation Hub
+| 16 GB RAM, 4 CPUs, 40 GB disk + 40 GB for `/var/lib/pulp`
+| Database
+| 16 GB RAM, 4 CPUs, 40 GB disk + 200 GB for `/var/lib/pgsql`
+| Platform Gateway
+| 16 GB RAM, 4 CPUs, 40 GB disk
+| Execution Nodes
+| 16 GB RAM, 4 CPUs, 40 GB disk
+| Hop Nodes
+| 16 GB RAM, 4 CPUs, 40 GB disk
+| EDA Controller
+| 16 GB RAM, 4 CPUs, 40 GB disk
+|===
+
+.Required Software Versions
+
+- `ansible-core` version **2.16** or later
+- `Python` version **3.8** or later
 
 == RHEL OS Installation
 
-. Register the system to RHN
-. Software selection "minimal install"
-. Network & Hostname: Ideally you will have an static IP, in my case it will be Dynamic so all I need to change is the hostname to:
+[NOTE]
+====
+You may follow the manual steps outlined below, or simply run the provided playbook `pre-setup.yml` to prepare the system.  
 
+Run the playbook from the bastion host (the system where you will perform the AAP installation), using the designated installing user:
+
+[source,bash]
+----
+$ ansible-playbook -i inventory.yml -K pre-setup.yml 
+----
+====
+
+[WARNING]
+====
+Before running the playbook, review both your **inventory file** and the **playbook** itself to ensure they reflect the correct values for your environment.
+
+Pay special attention to IP addresses, hostnames, credentials, and any other configuration-specific settings.
+====
+
+. Register the system to Red Hat Subscription Management (RHSM).
+. Choose **"Minimal Install"** in the Software Selection screen.
+. Under **Network & Hostname**, configure the system's identity:
++
+Ideally, use a static IP address. However, in this sandbox environment, dynamic IPs will be used. Just ensure to manually set the **hostname** for each system:
++
 - `automationcontroller.home.lab`
 - `automationhub.home.lab`
 - `automationdatabase.home.lab`
@@ -42,35 +81,39 @@ Email: jumedina@redhat.com
 - `executionnode1.home.lab`
 - `hopnode1.home.lab`
 - `automationedacontroller.home.lab`
-
-. Set a root password, in my case I'll allow SSH
-. Create the user ansible
 +
-image::images/ansible_user.png[align="center"]
+. Set a root password (in this environment, SSH access for root is allowed).
+. Create the `ansible` user:
++
+image::../images/ansible_user.png[align="center"]
++
+. All systems can remain with the default partitioning, **except for** the following roles: `Automation Controller`, `Automation Hub`, and `Automation Database`. For those systems, use a **custom storage configuration**:
+.. Select the installation disk.
+.. Click the link **"Click here to create them automatically"**, and ensure **LVM** is selected.
+.. Adjust the logical volume sizes:
++
+- Reduce the size of `/home` to ~5GB (or smaller if needed).
+- Reduce the size of `/` (root) to ~40GB.
+- Add a new logical volume as follows:
++
+[cols="1,3", options="header"]
+|===
+| System Role | Custom Mount Point
 
-All systems can remain as configured by default except: Controller, Hub and Database on which you will:
-
-. Select the storage disk with custom configuration:
-.. Click the "Click here to create them automatically" link making sure you have LVM selected.
-.. Reduce the size of the `/home` logical volume as needed, in my case 5GB
-.. Reduce the space of the `/` logical volume as needed, in my case 40GB
-.. Add a new logical volume as follows:
-
-Automation Controller with at least 20GB in `/var/lib/awx`
-Automation Hub with at least 40GB in `/var/lib/pulp`
-Automation Database with at least 200GB in `/var/lib/pgsql`
+| Automation Controller | `/var/lib/awx` (at least 20GB)
+| Automation Hub        | `/var/lib/pulp` (at least 40GB)
+| Automation Database   | `/var/lib/pgsql` (at least 200GB)
+|===
 
 Example:
 
-image::images/disk_conf_controller.png[align="center"]
+image::../images/disk_conf_controller.png[align="center"]
 
 == Bastion System
 
-The bastion system could be your own workstation or a virtual machine that can be decommissioned once the installation is completed.
+The bastion system can be either your own workstation or a virtual machine (VM) that can be decommissioned once the installation is complete.
 
-. Get the IP Addresses for all the systems that will be part of the cluster
-+
-In my case since I am using KVM Virtual Machines I can get that information with the following command (a bit filtered to get clean info)
+. Obtain the IP addresses of all systems that will be part of the cluster. In my setup, I am using KVM Virtual Machines. To retrieve the IP addresses, I use the following command, which is filtered to provide clean output:
 +
 [source,shell]
 ----
@@ -83,23 +126,32 @@ $ virsh net-dhcp-leases default | awk '{print $5,$6}' | sed 's|/24||g' | grep '^
 192.168.122.114 automationhub
 ----
 +
-note: In my case even when I didn't assigned static IPs KVM does lease IPs based on MACs which means these won't be changed over time.
-
-. Register the names in the host table of the bastion
+[NOTE]
+====
+Although I haven't assigned static IPs, KVM leases IPs based on MAC addresses, ensuring that the IPs won't change over time.
+====
 +
+. Register the system names in the host table of the bastion
++
+To register the system names in the bastion's host table, include the following:
+
 [source,shell]
 ----
 include::rpm2.5.hosts[]
 ----
-
-. Create an inventory file with these systems to be used with the pre-configuration.yml playbook
 +
+. Create an inventory file for the systems to be used with the pre-configuration.yml playbook
++
+To create an inventory file, include the following systems in the file for use with the pre-configuration playbook:
+
 [source,ini]
 ----
 include::rpm2.5-inventory.yml[]
 ----
 
-Before we can run the playbook to configure the requirements we need to create the SSH key for the ansible user in the bastion system and share it across all the systems of the AAP cluster
+Before running the playbook to configure the requirements, we need to create an SSH key for the `ansible` user on the bastion system and distribute it across all systems in the AAP cluster.
+
+. Generate the SSH key for the `ansible` user
 
 [source,bash]
 ----
@@ -110,7 +162,7 @@ chmod 600 ~/.ssh/authorized_keys
 chown -R $USER:$USER ~/.ssh
 ----
 
-Now let's copy the key to all the systems
+. Copy the SSH key to all systems in the cluster
 
 [source,bash]
 ----
@@ -122,113 +174,97 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub automationdatabase.home.lab
 ssh-copy-id -i ~/.ssh/id_rsa.pub executionnode1.home.lab
 ----
 
-
-. Run the pre-configuration.yml playbook with the command:
+. Run the `pre-setup.yml` playbook with the following command:
 
 [source,bash]
 ----
-ansible@server:~$ ansible-playbook -i rpm2.5-inventory.yml -K rpm2.5-pre-configuration.yml
+$ ansible-playbook -i inventory.yml -K pre-setup.yml
 ----
-
-The playbook will perform the following actions:
-
-. Register all the cluster systems in the host table to guarantee name resolution
-. Ensure the installer user exist, has sudo access, has the correct permissions of SSH files and can linger services
-. Ensure the correct permissions of SSH files for root
-
-
-[source,yaml]
-----
-include::rpm2.5-pre-configuration.yml[]
-----
-
-#TODO: Include a list of the actions performed by the playbook
-
-- 
 
 == Network Requirements
 
 [%header,cols="1,5"]
 |===
-| Port Protocol | Source -> Destination
-| 22 TCP        | bastion                  -> to all machines (temporary)
-| 80/443 TCP    | automationedacontroller  -> automationhub
-| 80/443 TCP    | automationedacontroller  -> automationcontroller
-| 80/443 TCP    | automationcontroller     -> automationhub
-| 80/443 TCP    | automationgateway        -> automationcontroller
-| 80/443 TCP    | automationgateway        -> automationhub
-| 80/443 TCP    | automationgateway        -> automationedacontroller
-| 80/443 TCP    | bastion                  -> automationhub
-| 80/443 TCP    | executionnode1           -> automationhub
-| 80/443 TCP    | HAProxy LB               -> automationgateway
-| 80/443 TCP    | HAProxy LB               -> automationcontroller
-| 80/443 TCP    | HAProxy LB               -> automationedacontroller
-| 5432 TCP      | automationedacontroller  -> automationdatabase
-| 5432 TCP      | automationgateway        -> automationdatabase
-| 5432 TCP      | automationhub            -> automationdatabase
-| 5432 TCP      | automationcontroller     -> automationdatabase
-| 6379 TCP      | automationedacontroller  -> automationgateway (redisnode)
-| 6379 TCP      | automationgateway        -> automationgateway (redisnode)
-| 8443 TCP      | automationgateway        -> automationgateway
-| 8443 TCP      | automationgateway        -> edaexecutionnodes (*all) 
-| 16379 TCP     | redisnodes               -> redisnodes (*only redis clustered)
-| 27199 TCP     | automationcontroller  <<-bi->> executionnode1 (*all execution nodes)
-| 27199 TCP     | automationcontroller     -> hopnode (*all hop nodes)
-| 27199 TCP     | automationcontroller     -> hybridnode (*all hybrid nodes)
-| 27199 TCP     | executionnodes        <<-bi->> hopnode as required per distribution
+| Port Protocol   | Source -> Destination
+| 22 TCP          | bastion                  -> all machines (temporary)
+| 80/443 TCP      | automationedacontroller  -> automationhub
+| 80/443 TCP      | automationedacontroller  -> automationcontroller
+| 80/443 TCP      | automationcontroller     -> automationgateway
+| 80/443 TCP      | automationcontroller     -> automationhub
+| 80/443 TCP      | automationgateway        -> automationcontroller
+| 80/443 TCP      | automationgateway        -> automationhub
+| 80/443 TCP      | automationgateway        -> automationedacontroller
+| 80/443 TCP      | bastion                  -> automationhub
+| 80/443 TCP      | executionnode1           -> automationhub
+| 80/443 TCP      | HAProxy LB               -> automationgateway
+| 80/443 TCP      | HAProxy LB               -> automationcontroller
+| 80/443 TCP      | HAProxy LB               -> automationedacontroller
+| 5432 TCP        | automationedacontroller  -> automationdatabase
+| 5432 TCP        | automationgateway        -> automationdatabase
+| 5432 TCP        | automationhub            -> automationdatabase
+| 5432 TCP        | automationcontroller     -> automationdatabase
+| 6379 TCP        | automationedacontroller  -> automationgateway (redisnode)
+| 6379 TCP        | automationgateway        -> automationgateway (redisnode)
+| 8443 TCP        | automationgateway        -> automationgateway
+| 8443 TCP        | automationgateway        -> edaexecutionnodes (*all)
+| 16379 TCP       | redisnodes               -> redisnodes (*only redis clustered)
+| 27199 TCP       | automationcontroller  <<-bi->> executionnode1 (*all execution nodes)
+| 27199 TCP       | automationcontroller     -> hopnode (*all hop nodes)
+| 27199 TCP       | automationcontroller     -> hybridnode (*all hybrid nodes)
+| 27199 TCP       | executionnodes        <<-bi->> hopnode as required per distribution
 |===
 
 == Remotes
 
 === Red Hat Insights
 
-- https://api.access.redhat.com:443       General account services, subscriptions
-- https://cert-api.access.redhat.com:443  Insights data upload
-- https://cert.console.redhat.com:443     Inventory upload and Cloud Connector connection
-- https://console.redhat.com:443          Access to Insights dashboard
+- https://api.access.redhat.com:443       :: General account services and subscriptions
+- https://cert-api.access.redhat.com:443  :: Insights data upload
+- https://cert.console.redhat.com:443     :: Inventory upload and Cloud Connector connection
+- https://console.redhat.com:443          :: Access to Insights dashboard
 
 === Automation Hub
 
-- https://console.redhat.com:443          General account services, subscriptions
-- https://catalog.redhat.com:443          Indexing execution environments
-- https://sso.redhat.com:443
+- https://console.redhat.com:443          :: General account services and subscriptions
+- https://catalog.redhat.com:443          :: Indexing execution environments
+- https://sso.redhat.com:443              :: Single Sign-On (SSO) services
 - https://automation-hub-prd.s3.amazonaws.com
 - https://automation-hub-prd.s3.us-east-2.amazonaws.com
 
-=== Firewall access
+=== Firewall Access
 
-- https://galaxy.ansible.com:443          Ansible Community curated Ansible content
-- https://ansible-galaxy-ng.s3.dualstack.us-east-1.amazonaws.com  Dual Stack IPv6 endpoint for Community curated Ansible content repository
-- https://registry.redhat.io:443          Access to container images provided by Red Hat and partners
-- https://cert.console.redhat.com:443     Red Hat and partner curated Ansible Collections
+- https://galaxy.ansible.com:443          :: Ansible Community curated content
+- https://ansible-galaxy-ng.s3.dualstack.us-east-1.amazonaws.com :: Dual Stack IPv6 endpoint for Community curated Ansible content
+- https://registry.redhat.io:443          :: Access to container images provided by Red Hat and partners
+- https://cert.console.redhat.com:443     :: Red Hat and partner curated Ansible Collections
 
-Execution Environments (EE)
+=== Execution Environments (EE)
 
-- https://registry.redhat.io:443          Access to container images provided by Red Hat and partners
-- cdn.quay.io:443 and cdn[01 to 06].quay.io:443        Access to container images provided by Red Hat and partners
+- https://registry.redhat.io:443          :: Access to container images provided by Red Hat and partners
+- cdn.quay.io:443 and cdn[01 to 06].quay.io:443 :: Access to container images provided by Red Hat and partners
 
-== On gateway an Hop Nodes
+== On Gateway and Hop Nodes
 
-You are required to set umask=0022.
+You are required to set the `umask` to `0022`.
 
 == On Automation Hub
 
-If using more than one Automation Hub Controller
+If you are using more than one Automation Hub Controller:
 
-verify that you installed the `/var/lib/pulp` directory across your cluster as part of the shared storage file system installation
+- Verify that the `/var/lib/pulp` directory is installed across your cluster as part of the shared storage file system installation.
 
-If HA will be enabled
+If High Availability (HA) will be enabled:
 
-you must first install and use `firewalld` to open the necessary ports as required by your shared storage system before running the Ansible Automation Platform installer.
+- Ensure that you first install and configure `firewalld` to open the necessary ports required by your shared storage system before running the Ansible Automation Platform installer.
 
-Install the firewalld daemon:
+To install the `firewalld` daemon:
 
 [source,bash]
 ----
 $ dnf install firewalld
 ----
 
-Add your network storage under and reload:
+Add your network storage service and reload the firewall:
 
 [source,bash]
 ----
@@ -238,11 +274,16 @@ $ firewall-cmd --reload
 
 == On the database
 
-To determine if your automation controller instance has access to the database, you can do so with the command, `awx-manage check_db` command.
+To determine if your Automation Controller instance has access to the database, use the following command:
+
+[source,bash]
+----
+$ awx-manage check_db
+----
 
 == Upgrade
 
-Upgrade all the systems and reboot
+Upgrade all systems and reboot
 
 [source,shell]
 ----
@@ -254,34 +295,26 @@ systemctl reboot
 
 *On the bastion*
 
+Visit the following URL to download the required package:
+
 https://access.redhat.com/downloads/content/480/ver=2.5/rhel---9/2.5/x86_64/product-software
 
-- For online installations: Ansible Automation Platform 2.5
-- For offline or bundled installations: Ansible Automation Platform 2.5 Setup Bundle
+- For online installations: Download **Ansible Automation Platform 2.5**.
+- For offline or bundled installations: Download **Ansible Automation Platform 2.5 Setup Bundle**.
 
-Copy the package to your system and extract it as the user `ansible`
+Copy the package to your system and extract it as the `ansible` user.
 
-Also copy the zip file for the license (Do not extract this one)
+Also, copy the license zip file (Do **not** extract this one).
 
-[source,shell]
+[source,bash]
 ----
-scp ansible-automation-platform-containerized-setup-2.5-10.tar.gz ansible@aap.home.lab:~
-scp c57ede26-dae3-4811-a854-2ed0f1a73c54.zip ansible@aap.home.lab:~
-tar xfvz ansible-automation-platform-containerized-setup-*.tar.gz
-cd ansible-automation-platform-containerized-setup-*
+$ scp ansible-automation-platform-containerized-setup-2.5-10.tar.gz ansible@aap.home.lab:~
+$ scp c57ede26-dae3-4811-a854-2ed0f1a73c54.zip ansible@aap.home.lab:~
+$ tar xfvz ansible-automation-platform-containerized-setup-*.tar.gz
+$ cd ansible-automation-platform-containerized-setup-*
 ----
 
 == Inventory for RPM Growth Topology
-
-Considering in my environment the following hostnames
-
-- automationgateway.home.lab
-- automationcontroller.home.lab
-- automationhub.home.lab
-- automationedacontroller.home.lab
-- executionnode1.home.lab
-- automationdatabase.home.lab
-
 
 [source,yaml]
 ----
@@ -315,19 +348,23 @@ controller_license_file=/home/ansible/c57ede26-dae3-4811-a854-2ed0f1a73c54.zip
 bundled=false
 enable_insights_collection=true
 
+# Automation Gateway
 automationgateway_pg_host=automationdatabase.home.lab
 automationgateway_pg_password=redhat123
 automationgateway_admin_password=redhat123
 
+# Automation Hub
 automationhub_pg_host=automationdatabase.home.lab
 automationhub_pg_password=redhat123
 automationhub_admin_password=redhat123
 automationhub_seed_collections=true
 
+# Automation Event Driven Ansible Controller
 automationedacontroller_pg_host=automationdatabase.home.lab
 automationedacontroller_pg_password=redhat123
 automationedacontroller_admin_password=redhat123
 
+# Automation Controller
 pg_host=automationdatabase.home.lab
 pg_port=5432
 pg_password=redhat123
@@ -336,7 +373,7 @@ admin_password=redhat123
 
 == Installation 
 
-NOTE: If need to be prompted for password add the option `-K` to the following command.
+Start the installation process with the following command:
 
 [source,shell]
 ----
@@ -345,12 +382,7 @@ export ANSIBLE_BECOME=True
 ./setup.sh -i inventory-growth
 ----
 
-IMPORTANT: *Go get a coffee!*
-
-== A Healthy Running System
-
-Expected services
-
-[source,shell]
-----
-----
+[IMPORTANT]
+====
+*Go get a coffee!*
+====
