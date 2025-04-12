@@ -2,16 +2,16 @@
 
 == Installation Notes
 
-IMPORTANT: The following documents the procedures I follow to install AAP in multiple ways in my local environment where I run Virtual Machines using KVM without network or firewall restrictions. Take that into consideration before running the code as is. 
+Important: The instructions provided here describe the methods I use to install Ansible Automation Platform (AAP) in my personal lab environment. This environment uses KVM-based virtual machines without network or firewall restrictions. Please be aware of this context before running the included playbooks or configurations, as your environment may require adjustments.
 
-These repository covers:
+This repository currently includes:
 
-- Containerized Installation of AAP 2.5 growth topology in a single machine
-- RPM Installation of AAP 2.5 growth topology with the smaller possible footprint of 6 VMs
+- Containerized Installation of AAP 2.5 using a growth topology on a single host
+- RPM-based Installation of AAP 2.5 using a growth topology distributed across six minimal VMs
 
-In the future:
+Planned additions:
 
-- Containerized Installation of AAP 2.5 enterprise topology with managed database
-- Containerized Installation of AAP 2.5 enterprise topology with external database
-- RPM Installation of AAP 2.5 enterprise topology with managed database
-- RPM Installation of AAP 2.5 enterprise topology with external database
+- Containerized Installation of AAP 2.5 using the enterprise topology with a managed database
+- Containerized Installation of AAP 2.5 using the enterprise topology with an external database
+- RPM-based Installation of AAP 2.5 using the enterprise topology with a managed database
+- RPM-based Installation of AAP 2.5 using the enterprise topology with an external database
