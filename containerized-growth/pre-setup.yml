@@ -50,7 +50,7 @@
       changed_when: false
 
     - name: Generate SSH Keys without password for the user ansible
-      community.crypto.openssh_keypair:
+      openssh_keypair:
         path: /home/ansible/.ssh/id_rsa
         size: 4096
         owner: ansible
@@ -59,6 +59,7 @@
         mode: '0600'
         state: present
         force: false
+
     - name: Generate SSH Keys without password for the user root
       community.crypto.openssh_keypair:
         path: /root/.ssh/id_rsa
