@@ -51,11 +51,10 @@
 
     - name: Generate SSH Keys without password for the user {{ item }}
       community.crypto.openssh_keypair:
-        path: "{{ (item == 'root') | ternary('/root/.ssh/id_rsa', '/home/' + item + '/.ssh/id_rsa') }}"
-        type: "rsa"
+        path: /home/ansible/.ssh/id_rsa
         size: 4096
-        owner: "{{ item }}"
-        group: "{{ item }}"
+        owner: ansible
+        group: ansible
         passphrase: ""
         mode: '0600'
         state: present
